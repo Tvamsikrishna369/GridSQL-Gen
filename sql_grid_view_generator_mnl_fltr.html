@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grid View SQL Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #141720;
+    --surface2: #1c2030;
+    --border: #2a2f42;
+    --accent: #5b7fff;
+    --accent2: #36d9b5;
+    --danger: #ff5e6d;
+    --text: #e4e8f5;
+    --muted: #6b7394;
+    --code-bg: #0a0c10;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    grid-template-rows: 60px 1fr;
+  }
+
+  header {
+    grid-column: 1 / -1;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 28px;
+    gap: 14px;
+  }
+
+  header .logo {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  header .logo span { color: var(--accent); }
+  header .badge {
+    background: var(--accent);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    letter-spacing: 1px;
+  }
+  header .actions { margin-left: auto; display: flex; gap: 10px; }
+
+  /* ── LEFT PANEL ── */
+  .panel-left {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .section {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 5px;
+    letter-spacing: 0.5px;
+  }
+
+  input, select, textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    padding: 9px 12px;
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.2s;
+    margin-bottom: 12px;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+  }
+  select option { background: var(--surface2); }
+  textarea { resize: vertical; min-height: 80px; font-size: 11px; }
+
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* toggle */
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .toggle-row label { margin-bottom: 0; }
+  .switch { position: relative; width: 40px; height: 22px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; inset: 0;
+    background: var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .slider:before {
+    content: '';
+    position: absolute;
+    width: 16px; height: 16px;
+    left: 3px; top: 3px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s;
+  }
+  .switch input:checked + .slider { background: var(--accent); }
+  .switch input:checked + .slider:before { transform: translateX(18px); }
+
+  /* view list */
+  .view-list { padding: 14px 20px; flex: 1; overflow-y: auto; }
+  .view-list-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .view-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    position: relative;
+  }
+  .view-item:hover { border-color: var(--accent); }
+  .view-item.active { border-color: var(--accent); background: #1e2540; }
+  .view-item .vi-name { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+  .view-item .vi-meta { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+  .view-item .vi-del {
+    position: absolute; right: 10px; top: 10px;
+    background: none; border: none; cursor: pointer;
+    color: var(--muted); font-size: 16px; line-height: 1;
+    padding: 2px 6px; border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .view-item .vi-del:hover { color: var(--danger); background: #ff5e6d22; }
+
+  /* buttons */
+  .btn {
+    padding: 9px 18px;
+    border-radius: 7px;
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.15s, transform 0.1s;
+    letter-spacing: 0.3px;
+  }
+  .btn:hover { opacity: 0.88; }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-success { background: var(--accent2); color: #0a0c10; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .btn-full { width: 100%; }
+
+  .btn-group { display: flex; gap: 8px; margin-top: 4px; }
+
+  /* ── RIGHT PANEL ── */
+  .panel-right {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .output-toolbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .output-toolbar .title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+  .output-toolbar .count-badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent2);
+  }
+
+  .code-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    background: var(--code-bg);
+  }
+
+  pre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.75;
+    color: #c9d1f0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* syntax colors */
+  .kw   { color: #7b9fff; }
+  .str  { color: #ffcc70; }
+  .cmt  { color: #4a5070; font-style: italic; }
+  .fn   { color: #36d9b5; }
+  .num  { color: #ff9e7a; }
+  .sep  { color: #3a4060; }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--muted);
+    gap: 12px;
+    font-size: 14px;
+  }
+  .empty-state .icon { font-size: 48px; opacity: 0.3; }
+
+  /* scrollbars */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* copy toast */
+  #toast {
+    position: fixed; bottom: 30px; right: 30px;
+    background: var(--accent2); color: #0a0c10;
+    padding: 10px 20px; border-radius: 8px;
+    font-weight: 700; font-size: 13px;
+    opacity: 0; transform: translateY(10px);
+    transition: all 0.2s; pointer-events: none;
+    z-index: 999;
+  }
+  #toast.show { opacity: 1; transform: translateY(0); }
+
+  .filters-section { margin-top: 8px; }
+  .filter-row {
+    display: grid;
+    grid-template-columns: 1fr 80px 1fr auto;
+    gap: 6px;
+    margin-bottom: 6px;
+    align-items: center;
+  }
+  .filter-row input, .filter-row select { margin-bottom: 0; font-size: 11px; padding: 7px 8px; }
+  .filter-add-btn {
+    background: none;
+    border: 1px dashed var(--border);
+    color: var(--muted);
+    border-radius: 6px;
+    padding: 7px;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    transition: color 0.15s, border-color 0.15s;
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .filter-add-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  .number-input { display: flex; gap: 6px; }
+  .number-input input { margin-bottom: 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Grid<span>SQL</span> Gen</div>
+  <div class="badge">UPSERT</div>
+  <div class="actions">
+    <button class="btn btn-secondary btn-sm" onclick="clearAll()">Clear All</button>
+    <button class="btn btn-success btn-sm" onclick="copyAll()">⎘ Copy SQL</button>
+    <button class="btn btn-primary btn-sm" onclick="downloadSQL()">↓ Download .sql</button>
+  </div>
+</header>
+
+<!-- LEFT: Form -->
+<div class="panel-left">
+
+  <!-- Shared Settings -->
+  <div class="section">
+    <div class="section-title">Shared Settings</div>
+
+    <label>Category</label>
+    <input id="sharedCategory" value="GarmentDye" placeholder="e.g. GarmentDye" />
+
+    <label>Type</label>
+    <input id="sharedType" value="System" placeholder="e.g. System" />
+
+    <label>Subcategory</label>
+    <input id="sharedSubcategory" value="By Header" placeholder="e.g. By Header" />
+
+    <label>runwayModuleId</label>
+    <input id="sharedModuleId" value="AIMS360GMDYE01" placeholder="e.g. AIMS360GMDYE01" />
+
+    <label>Status</label>
+    <input id="sharedStatus" value="1" placeholder="1" />
+  </div>
+
+  <!-- Add Single View -->
+  <div class="section">
+    <div class="section-title">Add View Entry</div>
+
+    <label>View Name</label>
+    <input id="viewName" placeholder="e.g. Open Garment Dye" />
+
+    <div class="toggle-row">
+      <label>Is Default View?</label>
+      <label class="switch">
+        <input type="checkbox" id="isDefault" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="toggle-row">
+      <label>Has Filters?</label>
+      <label class="switch">
+        <input type="checkbox" id="hasFilters" onchange="toggleFilters()" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div id="filterSection" class="filters-section" style="display:none">
+      <label>GraphQL Filter Field</label>
+      <input id="gqlField" placeholder="e.g. status" />
+      <label>GraphQL Operator</label>
+      <select id="gqlOp">
+        <option value="eq">eq (equals)</option>
+        <option value="neq">neq (not equals)</option>
+        <option value="gt">gt (greater than)</option>
+        <option value="lt">lt (less than)</option>
+        <option value="contains">contains</option>
+        <option value="startsWith">startsWith</option>
+      </select>
+      <label>Filter Value</label>
+      <input id="gqlValue" placeholder="e.g. Open" />
+    </div>
+
+    <div class="row2">
+      <div>
+        <label>defaultPageSize</label>
+        <input id="defaultPageSize" value="0" type="number" />
+      </div>
+      <div>
+        <label>maxPageSize</label>
+        <input id="maxPageSize" value="0" type="number" />
+      </div>
+    </div>
+
+    <label>viewDetails JSON (optional)</label>
+    <textarea id="viewDetails" placeholder='Leave empty or paste JSON...'></textarea>
+
+    <button class="btn btn-primary btn-full" onclick="addView()">＋ Add View</button>
+  </div>
+
+  <!-- View List -->
+  <div class="view-list">
+    <div class="view-list-title">Views Queue (<span id="viewCount">0</span>)</div>
+    <div id="viewList"></div>
+  </div>
+
+</div>
+
+<!-- RIGHT: Output -->
+<div class="panel-right">
+  <div class="output-toolbar">
+    <span class="title">GENERATED SQL</span>
+    <span class="count-badge" id="blockCount">0 blocks</span>
+    <span style="margin-left:auto; font-size:11px; color:var(--muted); font-family:'JetBrains Mono',monospace;">grid_views_v2 · UPSERT pattern</span>
+  </div>
+  <div class="code-area">
+    <div class="empty-state" id="emptyState">
+      <div class="icon">⚡</div>
+      <div>Add views on the left to generate SQL</div>
+    </div>
+    <pre id="sqlOutput" style="display:none"></pre>
+  </div>
+</div>
+
+<div id="toast">Copied to clipboard!</div>
+
+<script>
+let views = [];
+
+function toggleFilters() {
+  const on = document.getElementById('hasFilters').checked;
+  document.getElementById('filterSection').style.display = on ? 'block' : 'none';
+}
+
+function addView() {
+  const name = document.getElementById('viewName').value.trim();
+  if (!name) { alert('View Name is required.'); return; }
+
+  const hasFilters = document.getElementById('hasFilters').checked;
+  const field = document.getElementById('gqlField').value.trim();
+  const op = document.getElementById('gqlOp').value;
+  const val = document.getElementById('gqlValue').value.trim();
+
+  views.push({
+    name,
+    isDefault: document.getElementById('isDefault').checked ? 1 : 0,
+    hasFilters,
+    field, op, val,
+    defaultPageSize: document.getElementById('defaultPageSize').value || '0',
+    maxPageSize: document.getElementById('maxPageSize').value || '0',
+    viewDetails: document.getElementById('viewDetails').value.trim(),
+  });
+
+  // reset
+  document.getElementById('viewName').value = '';
+  document.getElementById('hasFilters').checked = false;
+  document.getElementById('isDefault').checked = false;
+  document.getElementById('gqlField').value = '';
+  document.getElementById('gqlValue').value = '';
+  document.getElementById('viewDetails').value = '';
+  document.getElementById('filterSection').style.display = 'none';
+
+  renderList();
+  renderSQL();
+}
+
+function removeView(i) {
+  views.splice(i, 1);
+  renderList();
+  renderSQL();
+}
+
+function renderList() {
+  const container = document.getElementById('viewList');
+  document.getElementById('viewCount').textContent = views.length;
+  if (!views.length) { container.innerHTML = ''; return; }
+  container.innerHTML = views.map((v, i) => `
+    <div class="view-item">
+      <button class="vi-del" onclick="removeView(${i})">×</button>
+      <div class="vi-name">${escHtml(v.name)}</div>
+      <div class="vi-meta">
+        ${v.hasFilters ? `filter: ${v.field} ${v.op} "${v.val}"` : 'no filters'}
+        ${v.isDefault ? ' · default' : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function buildFiltersJSON(v) {
+  if (!v.hasFilters || !v.field) return 'NULL';
+  const uid1 = randomId(), uid2 = randomId(), uid3 = randomId();
+  const arr = [
+    {id:uid1,key:"DefaultLeftKey",value:"(",operator:"",condition:"",isExpSelected:false,type:"Group",isReadable:false},
+    {id:uid2,header:capitalize(v.field),key:v.field,value:v.val,operator:v.op,condition:"",isExpSelected:false,type:"Expression",isReadable:false},
+    {id:uid3,key:"DefaultRightKey",value:")",operator:"",condition:"",isExpSelected:false,type:"Group",isReadable:false}
+  ];
+  return "'" + JSON.stringify(arr).replace(/'/g, "''") + "'";
+}
+
+function buildGraphQL(v) {
+  if (!v.hasFilters || !v.field) return "''";
+  return "'" + JSON.stringify({conditions:[{field:v.field,operator:v.op,values:v.val}]}).replace(/'/g,"''") + "'";
+}
+
+function randomId() {
+  return Math.random().toString(36).substr(2, 10);
+}
+function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+function getShared() {
+  return {
+    category: document.getElementById('sharedCategory').value.trim() || 'GarmentDye',
+    type: document.getElementById('sharedType').value.trim() || 'System',
+    subcategory: document.getElementById('sharedSubcategory').value.trim() || 'By Header',
+    moduleId: document.getElementById('sharedModuleId').value.trim() || '',
+    status: document.getElementById('sharedStatus').value.trim() || '1',
+  };
+}
+
+function generateSQL() {
+  const s = getShared();
+  if (!views.length) return '';
+
+  const preamble =
+`-- ============================================================
+--  Generated by GridSQL Gen
+--  Category : ${s.category}  |  Type : ${s.type}
+--  Subcategory : ${s.subcategory}
+-- ============================================================
+DECLARE @Now DATETIME = GETUTCDATE();
+DECLARE @USERID NVARCHAR(100) = 'system';
+DECLARE @ViewDetails NVARCHAR(MAX);
+GO
+`;
+
+  const blocks = views.map((v, i) => {
+    const filters = buildFiltersJSON(v);
+    const gql = buildGraphQL(v);
+    const vd = v.viewDetails ? "'" + v.viewDetails.replace(/'/g,"''") + "'" : "''";
+    const filtersVal = v.hasFilters ? filters : 'NULL';
+
+    return `
+/*==============================================================
+  ${i+1}) ${v.name}
+  Subcategory: ${s.subcategory}
+==============================================================*/
+BEGIN TRY
+    PRINT 'Starting: ${v.name}';
+
+    SET @ViewDetails = ${vd};${!v.viewDetails ? '\n    -- TODO: Add viewDetails JSON for \'' + v.name + '\'' : ''}
+
+    IF EXISTS (
+        SELECT 1
+        FROM grid_views_v2
+        WHERE category = '${s.category}'
+          AND [type] = '${s.type}'
+          AND [name] = '${v.name}'
+    )
+    BEGIN
+        UPDATE grid_views_v2
+        SET viewDetails    = @ViewDetails,
+            lastModifiedOn = @Now,
+            lastModifiedBy = @USERID
+        WHERE category = '${s.category}'
+          AND [type] = '${s.type}'
+          AND [name] = '${v.name}';
+    END
+    ELSE
+    BEGIN
+        INSERT INTO grid_views_v2 (
+            viewid, [name], category, [type], [status], viewDetails, filters,
+            createdOn, createdBy, lastModifiedOn, lastModifiedBy,
+            urlExpand, runwayModuleId, urlEndPoint, subcategory,
+            GraphQLFilters, DefaultView, GraphQLName, GraphQLIdentifier,
+            AllRoles, AllUsers, defaultPageSize, maxPageSize, GraphQLOptions
+        )
+        VALUES (
+            NEWID(), '${v.name}', '${s.category}', '${s.type}', ${s.status}, @ViewDetails,
+            ${filtersVal},
+            @Now, @USERID, NULL, NULL,
+            '', '${s.moduleId}', '', '${s.subcategory}',
+            ${gql},
+            ${v.isDefault}, NULL, NULL, 0, 0, ${v.defaultPageSize}, ${v.maxPageSize}, NULL
+        );
+    END;
+
+    PRINT 'Completed: ${v.name}';
+END TRY
+BEGIN CATCH
+    PRINT 'Error in: ${v.name}';
+    PRINT ERROR_MESSAGE();
+    THROW;
+END CATCH;`;
+  });
+
+  return preamble + blocks.join('\n');
+}
+
+function renderSQL() {
+  const sql = generateSQL();
+  const out = document.getElementById('sqlOutput');
+  const empty = document.getElementById('emptyState');
+  const counter = document.getElementById('blockCount');
+
+  counter.textContent = views.length + ' block' + (views.length !== 1 ? 's' : '');
+
+  if (!sql) {
+    out.style.display = 'none';
+    empty.style.display = 'flex';
+    return;
+  }
+  empty.style.display = 'none';
+  out.style.display = 'block';
+  out.innerHTML = highlight(sql);
+}
+
+function highlight(sql) {
+  // Basic SQL syntax highlighting
+  return escHtml(sql)
+    .replace(/(&lt;|&gt;)/g, m => m)
+    .replace(/(--[^\n]*)/g, '<span class="cmt">$1</span>')
+    .replace(/\b(BEGIN|END|TRY|CATCH|IF|EXISTS|SELECT|FROM|WHERE|UPDATE|SET|INSERT|INTO|VALUES|PRINT|DECLARE|GO|AND|NOT|THROW|NEWID)\b/g, '<span class="kw">$1</span>')
+    .replace(/'([^']*)'/g, '<span class="str">\'$1\'</span>')
+    .replace(/\/\*[\s\S]*?\*\//g, m => `<span class="cmt">${m}</span>`)
+    .replace(/\b(\d+)\b/g, '<span class="num">$1</span>');
+}
+
+function copyAll() {
+  const sql = generateSQL();
+  if (!sql) return;
+  navigator.clipboard.writeText(sql).then(() => showToast('Copied to clipboard!'));
+}
+
+function downloadSQL() {
+  const sql = generateSQL();
+  if (!sql) return;
+  const blob = new Blob([sql], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'grid_views_upsert.sql';
+  a.click();
+}
+
+function clearAll() {
+  if (views.length && !confirm('Remove all views?')) return;
+  views = [];
+  renderList();
+  renderSQL();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// Shared settings auto-regenerate on change
+['sharedCategory','sharedType','sharedSubcategory','sharedModuleId','sharedStatus'].forEach(id => {
+  document.getElementById(id).addEventListener('input', renderSQL);
+});
+
+// Add preset views for quick demo
+function addPreset(name, field, op, val, isDefault) {
+  views.push({ name, hasFilters: !!field, field: field||'', op: op||'eq', val: val||'', isDefault: isDefault?1:0, defaultPageSize:'0', maxPageSize:'0', viewDetails:'' });
+  renderList(); renderSQL();
+}
+</script>
+
+</body>
+</html>
