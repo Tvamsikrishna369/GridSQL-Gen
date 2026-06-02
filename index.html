@@ -368,19 +368,10 @@
     </div>
 
     <div id="filterSection" class="filters-section" style="display:none">
-      <label>GraphQL Filter Field</label>
-      <input id="gqlField" placeholder="e.g. status" />
-      <label>GraphQL Operator</label>
-      <select id="gqlOp">
-        <option value="eq">eq (equals)</option>
-        <option value="neq">neq (not equals)</option>
-        <option value="gt">gt (greater than)</option>
-        <option value="lt">lt (less than)</option>
-        <option value="contains">contains</option>
-        <option value="startsWith">startsWith</option>
-      </select>
-      <label>Filter Value</label>
-      <input id="gqlValue" placeholder="e.g. Open" />
+      <label>filters JSON <span style="color:var(--muted);font-weight:400">(→ filters column)</span></label>
+      <textarea id="filtersJson" style="min-height:110px;font-size:10.5px" placeholder='[{"id":"...","key":"DefaultLeftKey","value":"(","operator":"","condition":"","isExpSelected":false,"type":"Group","isReadable":false},{"id":"...","header":"Status","key":"status","value":"Open","operator":"eq","condition":"","isExpSelected":false,"type":"Expression","isReadable":false},{"id":"...","key":"DefaultRightKey","value":")","operator":"","condition":"","isExpSelected":false,"type":"Group","isReadable":false}]'></textarea>
+      <label>GraphQLFilters JSON <span style="color:var(--muted);font-weight:400">(→ GraphQLFilters column)</span></label>
+      <textarea id="graphqlFiltersJson" style="min-height:64px;font-size:10.5px" placeholder='{"conditions": [{"field": "status","operator": "eq","values": "Open"}]}'></textarea>
     </div>
 
     <div class="row2">
@@ -439,15 +430,22 @@ function addView() {
   if (!name) { alert('View Name is required.'); return; }
 
   const hasFilters = document.getElementById('hasFilters').checked;
-  const field = document.getElementById('gqlField').value.trim();
-  const op = document.getElementById('gqlOp').value;
-  const val = document.getElementById('gqlValue').value.trim();
+  const filtersRaw = document.getElementById('filtersJson').value.trim();
+  const graphqlRaw = document.getElementById('graphqlFiltersJson').value.trim();
+
+  if (hasFilters && filtersRaw) {
+    try { JSON.parse(filtersRaw); } catch(e) { alert('filters JSON is invalid:\n' + e.message); return; }
+  }
+  if (hasFilters && graphqlRaw) {
+    try { JSON.parse(graphqlRaw); } catch(e) { alert('GraphQLFilters JSON is invalid:\n' + e.message); return; }
+  }
 
   views.push({
     name,
     isDefault: document.getElementById('isDefault').checked ? 1 : 0,
     hasFilters,
-    field, op, val,
+    filtersRaw,
+    graphqlRaw,
     defaultPageSize: document.getElementById('defaultPageSize').value || '0',
     maxPageSize: document.getElementById('maxPageSize').value || '0',
     viewDetails: document.getElementById('viewDetails').value.trim(),
@@ -457,8 +455,8 @@ function addView() {
   document.getElementById('viewName').value = '';
   document.getElementById('hasFilters').checked = false;
   document.getElementById('isDefault').checked = false;
-  document.getElementById('gqlField').value = '';
-  document.getElementById('gqlValue').value = '';
+  document.getElementById('filtersJson').value = '';
+  document.getElementById('graphqlFiltersJson').value = '';
   document.getElementById('viewDetails').value = '';
   document.getElementById('filterSection').style.display = 'none';
 
@@ -481,7 +479,7 @@ function renderList() {
       <button class="vi-del" onclick="removeView(${i})">×</button>
       <div class="vi-name">${escHtml(v.name)}</div>
       <div class="vi-meta">
-        ${v.hasFilters ? `filter: ${v.field} ${v.op} "${v.val}"` : 'no filters'}
+        ${v.hasFilters ? (v.filtersRaw ? '✓ has filters' : '⚠ filters: empty') : 'no filters'}
         ${v.isDefault ? ' · default' : ''}
       </div>
     </div>
@@ -493,25 +491,15 @@ function escHtml(s) {
 }
 
 function buildFiltersJSON(v) {
-  if (!v.hasFilters || !v.field) return 'NULL';
-  const uid1 = randomId(), uid2 = randomId(), uid3 = randomId();
-  const arr = [
-    {id:uid1,key:"DefaultLeftKey",value:"(",operator:"",condition:"",isExpSelected:false,type:"Group",isReadable:false},
-    {id:uid2,header:capitalize(v.field),key:v.field,value:v.val,operator:v.op,condition:"",isExpSelected:false,type:"Expression",isReadable:false},
-    {id:uid3,key:"DefaultRightKey",value:")",operator:"",condition:"",isExpSelected:false,type:"Group",isReadable:false}
-  ];
-  return "'" + JSON.stringify(arr).replace(/'/g, "''") + "'";
+  if (!v.hasFilters || !v.filtersRaw) return 'NULL';
+  // Wrap the raw JSON in single quotes, escaping any internal single quotes for SQL
+  return "'" + v.filtersRaw.replace(/'/g, "''") + "'";
 }
 
 function buildGraphQL(v) {
-  if (!v.hasFilters || !v.field) return "''";
-  return "'" + JSON.stringify({conditions:[{field:v.field,operator:v.op,values:v.val}]}).replace(/'/g,"''") + "'";
+  if (!v.hasFilters || !v.graphqlRaw) return "''";
+  return "'" + v.graphqlRaw.replace(/'/g, "''") + "'";
 }
-
-function randomId() {
-  return Math.random().toString(36).substr(2, 10);
-}
-function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
 function getShared() {
   return {
@@ -667,8 +655,8 @@ function showToast(msg) {
 });
 
 // Add preset views for quick demo
-function addPreset(name, field, op, val, isDefault) {
-  views.push({ name, hasFilters: !!field, field: field||'', op: op||'eq', val: val||'', isDefault: isDefault?1:0, defaultPageSize:'0', maxPageSize:'0', viewDetails:'' });
+function addPreset(name, filtersRaw, graphqlRaw, isDefault) {
+  views.push({ name, hasFilters: !!filtersRaw, filtersRaw: filtersRaw||'', graphqlRaw: graphqlRaw||'', isDefault: isDefault?1:0, defaultPageSize:'0', maxPageSize:'0', viewDetails:'' });
   renderList(); renderSQL();
 }
 </script>
